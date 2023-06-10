@@ -125,8 +125,6 @@ void Parser::GetNets(size_t& ptr)
             if (segment[ptr] != ' ')
             {
                 name[i++] = segment[ptr++];
-                //if (segment[ptr] == '[')
-                    //printf("HERE!\n");
             }
             else
             {
@@ -134,7 +132,6 @@ void Parser::GetNets(size_t& ptr)
             }
         }
 
-        //printf("name = %s\n", name);
         int bitNum = highBit - lowBit + 1;
         
         std::vector <Net*> multi_nets_vec;
@@ -142,7 +139,6 @@ void Parser::GetNets(size_t& ptr)
         {
             Net* net = new Net(name, j, bitNum);
             multi_nets_vec.emplace_back(net);
-            //MultiNets.insert(std::pair<std::string, Net*>(name, net));
         }
         MultiNets.insert(std::pair<std::string, std::vector <Net*>>(name, multi_nets_vec));
 
@@ -217,32 +213,16 @@ void Parser::PutCellintoNet(Cell* cell)
     bool flag = 0;
     for (auto& netName : cell->SignleNets)
     {
-        //flag = 0;
         auto iter = SingleNets.find(netName);
         if (iter != SingleNets.end())
         {
-            //flag = 1;
             iter->second->Cells.insert(cell);
         }
-        /*
-        for (auto& net : SingleNets)
-        {
-            if (netName == net->name)
-            {
-                flag = 1;
-                net->Cells.insert(cell);
-                break;
-            }
-        }
-        */
         else
         {
             Net* net = new Net(netName, 0, 1);
             net->Cells.insert(cell);
             SingleNets.insert(std::pair<std::string, Net*>(netName, net));
-            //SingleNets.emplace_back(net);
-            //printf("DO NOT FIND SINGLE NET %s\n", netName.c_str());
-            //std::cout << segment << std::endl;
             fprintf(errorLogFile, "ERROR! DO NOT FIND SINGLE NET %s\n", netName.c_str());
             fprintf(errorLogFile, "ADD SINGLE NET %s !\n", netName.c_str());
         }
@@ -251,33 +231,13 @@ void Parser::PutCellintoNet(Cell* cell)
 
     for (auto& mulNetStruct : cell->MultiNets)
     {
-        //size_t i = 0;
-        //flag = 0;
         auto iter = MultiNets.find(mulNetStruct.name);
         if (iter != MultiNets.end())
         {
             int maxBit = iter->second[0]->ID;
             int offset = maxBit - mulNetStruct.ID;
-            //i += offset;
             iter->second[offset]->Cells.insert(cell);
         }
-        /*
-        while (i < MultiNets.size())
-        {
-            if (mulNetStruct.name != MultiNets[i]->name)
-            {
-                i += MultiNets[i]->bitNum;
-            }
-            else
-            {
-                flag = 1;
-                int offset = MultiNets[i]->ID - mulNetStruct.ID;
-                i += offset;
-                MultiNets[i]->Cells.insert(cell);
-                break;
-            }
-        }
-        */
         else
         {
             std::string netName = mulNetStruct.name + "[" + std::to_string(mulNetStruct.ID) + "]";
@@ -290,25 +250,7 @@ void Parser::PutCellintoNet(Cell* cell)
             {
                 fprintf(errorLogFile, "DO NOT FIND MULTI NET %s [%0d]\n", mulNetStruct.name.c_str(), mulNetStruct.ID);
             }
-            /*
-            for (auto& net : SingleNets)
-            {
-                if (netName == net->name)
-                {
-                    flag = 1;
-                    net->Cells.insert(cell);
-                    break;
-                }
-            }
-            */
         }
-        //if (!flag)
-        //{
-            //printf("DO NOT FIND MULTI NET %s [%0d]\n", mulNetStruct.name.c_str(), mulNetStruct.ID);
-            //std::cout << segment << std::endl;
-            //fprintf(errorLogFile, "DO NOT FIND MULTI NET %s [%0d]\n", mulNetStruct.name.c_str(), mulNetStruct.ID);   
-        //}
-            
     }
 }
 
@@ -324,7 +266,6 @@ void Parser::GetNetinCell(size_t& ptr, std::vector <std::string>& Single_Nets_in
         int bitNum = -1;
         while (segment[ptr] != '(') ++ptr;
         ++ptr; 
-        //SkipSpace(ptr);
         while (segment[ptr] == ' ') ++ptr;
         while (segment[ptr] != ')')
         {
@@ -332,7 +273,6 @@ void Parser::GetNetinCell(size_t& ptr, std::vector <std::string>& Single_Nets_in
             {
                 if (segment[ptr] == '[')
                 {
-                    //memset(num, '\0', 8 * sizeof(char));
                     ++ptr; SkipSpace(ptr);
                     size_t j = 0;
                     while (segment[ptr] != ']')
@@ -348,8 +288,6 @@ void Parser::GetNetinCell(size_t& ptr, std::vector <std::string>& Single_Nets_in
                         j = 0;
                         while (isCharacter(segment[ptr]))
                         {
-                            //if (segment[ptr] == '[')
-                            //    printf(" 1 HERE!\n");
                             netName[i++] = segment[ptr++];
                         }
                         num[0] = '-'; num[1] = '1'; j = 2;
@@ -364,7 +302,6 @@ void Parser::GetNetinCell(size_t& ptr, std::vector <std::string>& Single_Nets_in
                         sprintf(netName, "%s[%s]", netName, num);
                         i += (j + 2);
                         j = 0;
-                        //memset(num, '\0', 8 * sizeof(char));
                         while (segment[ptr] != ']')
                         {
                             num[j++] = segment[ptr++];
@@ -391,7 +328,6 @@ void Parser::GetNetinCell(size_t& ptr, std::vector <std::string>& Single_Nets_in
         netName[i] = '\0';
         ++ptr;
         SkipSpace(ptr);
-        //printf("net name = %s\n", netName);
         std::string str(netName);
         memset(netName, '\0', SIZE_OF_NAME * sizeof(char));
         if (str != "")
@@ -418,7 +354,6 @@ void Parser::HandleCombinedNets(size_t& ptr, std::vector <std::string>& Single_N
     char netName[SIZE_OF_NAME] = {'\0'};
     char num[8] = {'\0'};
     int bitNum = -1;
-    //memset(netName, '\0', SIZE_OF_NAME * sizeof(char));
     size_t i = 0;
     while (segment[ptr] != '}')
     {
@@ -435,8 +370,6 @@ void Parser::HandleCombinedNets(size_t& ptr, std::vector <std::string>& Single_N
                 ++ptr; 
                 if (isCharacter(segment[ptr]) && (segment[ptr] != ')'))  // xxx[0]~wirecell
                 {
-                    //if (segment[ptr] == '[')
-                    //    printf(" 2 HERE!\n");
                     netName[i] = '\0';
                     sprintf(netName, "%s[%s]", netName, num);
                     i += (j + 2);
@@ -613,13 +546,6 @@ void Parser::ShowNets()
                 fprintf(fs, "\t%s\n", cell->name.c_str());
             }
         }
-        /*
-        fprintf(fs, "MULTI  Net %s [%0d] : %ld relative cells\n", net->name.c_str(), net->ID, net->Cells.size());
-        for (auto cell : net->Cells)
-        {
-            fprintf(fs, "\t%s\n", cell->name.c_str());
-        }
-        */
     }
 
     fclose(fs);
@@ -690,7 +616,6 @@ void Parser::GetNetNum()
     {
         if (net.second->Cells.size() > 0) ++netNum;
     }
-    //for (auto& multi_net : MultiNets)
     for (auto iter = MultiNets.begin(); iter != MultiNets.end(); ++iter)
     {
         for (auto net : iter->second)
@@ -722,8 +647,6 @@ void Parser::Parse(std::string fileName)
                     printf("\r%3d / 100", precent);
                     precent_r = precent;
                 }
-                //printf("\r%3d / 100", int(ptr_of_buf * 100/len_of_buf));
-                //std::cout << segment << std::endl;
                 size_t ptr = 0;
                 if (!isStr("endmodule", ptr))
                 {

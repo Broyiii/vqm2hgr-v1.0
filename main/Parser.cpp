@@ -59,6 +59,9 @@ bool Parser::GetSegment()
     ++ptr_of_buf;
 
     segment[len_of_seg] = '\0';
+    
+    if (ptr_of_buf == 46309935)
+        ptr_of_buf = 46309935;
 
     return true;
 }
@@ -66,6 +69,8 @@ bool Parser::GetSegment()
 
 int Parser::str2int(char* str)
 {
+    if (str[0] == '\0')
+        return -1;
     int ret = 0;
     bool positiveNum = str[0] == '-' ? false : true;
     if (positiveNum)
@@ -334,7 +339,22 @@ void Parser::GetNetinCell(size_t& ptr, std::vector <std::string>& Single_Nets_in
         {
             if (bitNum < 0)
             {
-                Single_Nets_in_Cell.emplace_back(str);
+                // 判断是否是multinet默认全部位宽
+                auto iter = MultiNets.find(str);
+                if (iter == MultiNets.end())
+                {
+                    Single_Nets_in_Cell.emplace_back(str);
+                }
+                else
+                {
+                    int highbitNum = iter->second[0]->ID;
+                    int lowbitNum = iter->second.back()->ID;
+                    for (int b = highbitNum; b >= lowbitNum; --b)
+                    {
+                        MultiNet* mn = new MultiNet(str, b);
+                        Multi_Nets_in_Cell.emplace_back(*mn);
+                    }
+                }
             }
             else
             {
@@ -352,8 +372,10 @@ void Parser::HandleCombinedNets(size_t& ptr, std::vector <std::string>& Single_N
     ++ptr;
     SkipSpace(ptr);
     char netName[SIZE_OF_NAME] = {'\0'};
-    char num[8] = {'\0'};
-    int bitNum = -1;
+    char highnum[8] = {'\0'};
+    char lownum[8] = {'\0'};
+    int highbitNum = -1;
+    int lowbitNum = -1;
     size_t i = 0;
     while (segment[ptr] != '}')
     {
@@ -363,42 +385,54 @@ void Parser::HandleCombinedNets(size_t& ptr, std::vector <std::string>& Single_N
             {
                 ++ptr; SkipSpace(ptr);
                 size_t j = 0;
-                while (segment[ptr] != ']')
+                while (segment[ptr] != ':' && segment[ptr] != ']')
                 {
-                    num[j++] = segment[ptr++];
+                    highnum[j++] = segment[ptr++];
+                }
+                if (segment[ptr] == ':')
+                {
+                    ++ptr;
+                    highnum[j] = '\0';
+                    j = 0;
+                    while (segment[ptr] != ']')
+                    {
+                        lownum[j++] = segment[ptr++];
+                    }
                 }
                 ++ptr; 
                 if (isCharacter(segment[ptr]) && (segment[ptr] != ')'))  // xxx[0]~wirecell
                 {
                     netName[i] = '\0';
-                    sprintf(netName, "%s[%s]", netName, num);
+                    sprintf(netName, "%s[%s]", netName, highnum);
                     i += (j + 2);
                     j = 0;
                     while (isCharacter(segment[ptr]))
                     {
                         netName[i++] = segment[ptr++];
                     }
-                    num[0] = '-'; num[1] = '1'; j = 2;
+                    highnum[0] = '-'; highnum[1] = '1'; j = 2;
                     ++ptr;
                 }
                 SkipSpace(ptr);
-                num[j] = '\0';
+                lownum[j] = '\0';
                 if (segment[ptr] == '[')  // xxx[0] [1]
                 {
                     ++ptr;
                     netName[i] = '\0';
-                    sprintf(netName, "%s[%s]", netName, num);
+                    sprintf(netName, "%s[%s]", netName, highnum);
                     i += (j + 2);
                     j = 0;
                     while (segment[ptr] != ']')
                     {
-                        num[j++] = segment[ptr++];
+                        highnum[j++] = segment[ptr++];
                     }
                     ++ptr; SkipSpace(ptr);
-                    num[j] = '\0';
+                    highnum[j] = '\0';
                 }
-                bitNum = str2int(num);
-                memset(num, '\0', 8 * sizeof(char));
+                highbitNum = str2int(highnum);
+                lowbitNum = str2int(lownum);
+                memset(highnum, '\0', 8 * sizeof(char));
+                memset(lownum, '\0', 8 * sizeof(char));
             }
             else
             {
@@ -414,17 +448,45 @@ void Parser::HandleCombinedNets(size_t& ptr, std::vector <std::string>& Single_N
             memset(netName, '\0', SIZE_OF_NAME * sizeof(char));
             if (str != "")
             {
-                if (bitNum < 0)
+                // 判断是否是multinet默认全部位宽
+                if (highbitNum < 0)
+                {
+                    auto iter = MultiNets.find(str);
+                    if (iter != MultiNets.end())
+                    {
+                        highbitNum = iter->second[0]->ID;
+                        lowbitNum = iter->second.back()->ID;
+                    }
+                }
+                if (highbitNum < 0)
                 {
                     Single_Nets_in_Cell.emplace_back(str);
                 }
                 else
                 {
-                    MultiNet* mn = new MultiNet(str, bitNum);
-                    Multi_Nets_in_Cell.emplace_back(*mn);
+                    if (lowbitNum == -1)
+                    {
+                        MultiNet* mn = new MultiNet(str, highbitNum);
+                        Multi_Nets_in_Cell.emplace_back(*mn);
+                    }
+                    else
+                    {
+                        if (lowbitNum > highbitNum)
+                        {
+                            int tmp = lowbitNum;
+                            lowbitNum = highbitNum;
+                            highbitNum = tmp;
+                            for (int b = highbitNum; b >= lowbitNum; --b)
+                            {
+                                MultiNet* mn = new MultiNet(str, b);
+                                Multi_Nets_in_Cell.emplace_back(*mn);
+                            }
+                        }
+                    }
                 }
             }
-            bitNum = -1;
+            highbitNum = -1;
+            lowbitNum = -1;
             i = 0;
         }
         else
@@ -439,14 +501,41 @@ void Parser::HandleCombinedNets(size_t& ptr, std::vector <std::string>& Single_N
     memset(netName, '\0', SIZE_OF_NAME * sizeof(char));
     if (str != "")
     {
-        if (bitNum < 0)
+        // 判断是否是multinet默认全部位宽
+        if (highbitNum < 0)
+        {
+            auto iter = MultiNets.find(str);
+            if (iter != MultiNets.end())
+            {
+                highbitNum = iter->second[0]->ID;
+                lowbitNum = iter->second.back()->ID;
+            }
+        }
+        if (highbitNum < 0)
         {
             Single_Nets_in_Cell.emplace_back(str);
         }
         else
         {
-            MultiNet* mn = new MultiNet(str, bitNum);
-            Multi_Nets_in_Cell.emplace_back(*mn);
+            if (lowbitNum == -1)
+            {
+                MultiNet* mn = new MultiNet(str, highbitNum);
+                Multi_Nets_in_Cell.emplace_back(*mn);
+            }
+            else
+            {
+                if (lowbitNum > highbitNum)
+                {
+                    int tmp = lowbitNum;
+                    lowbitNum = highbitNum;
+                    highbitNum = tmp;
+                    for (int b = highbitNum; b >= lowbitNum; --b)
+                    {
+                        MultiNet* mn = new MultiNet(str, b);
+                        Multi_Nets_in_Cell.emplace_back(*mn);
+                    }
+                }
+            }
         }
     }
 }
@@ -579,7 +668,7 @@ void Parser::WriteHgr()
 
     for (auto& net : SingleNets)
     {
-        if (net.second->Cells.size() > 0)
+        if (net.second->Cells.size() > 1)
         {    
             for (auto& cell : net.second->Cells)
             {
@@ -593,7 +682,7 @@ void Parser::WriteHgr()
     {
         for (auto& net : multi_net.second)
         {
-            if (net->Cells.size() > 0)
+            if (net->Cells.size() > 1)
             {
                 for (auto& cell : net->Cells)
                 {
@@ -614,13 +703,13 @@ void Parser::GetNetNum()
 {
     for (auto& net : SingleNets)
     {
-        if (net.second->Cells.size() > 0) ++netNum;
+        if (net.second->Cells.size() > 1) ++netNum;
     }
     for (auto iter = MultiNets.begin(); iter != MultiNets.end(); ++iter)
     {
         for (auto net : iter->second)
         {
-            if (net->Cells.size() > 0) ++netNum;
+            if (net->Cells.size() > 1) ++netNum;
         }
     }
 }
